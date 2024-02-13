@@ -8,21 +8,67 @@ Do not change the input/output of each function, and do not remove the provided 
 
 def get_differential_filter():
     # To do
+    filter_x = np.array([[1, 0, -1], [1, 0, -1], [1, 0, -1]])
+    filter_y = np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]])
     return filter_x, filter_y
 
 
 def filter_image(im, filter):
     # To do
+    (rows, columns) = im.shape
+    im_filtered = np.zeros([rows, columns])
+
+    # Zero padding
+    padding_nx = int(filter.shape[1] / 2)
+    padding_ny = int(filter.shape[0] / 2)
+    im_zp = np.pad(im, ((padding_ny, padding_ny), (padding_nx, padding_nx)), 'constant', constant_values=0)
+    
+    # Convolution
+    for i in range(rows):
+        for j in range(columns):
+            for k in range(filter.shape[0]):
+                for l in range(filter.shape[1]):
+                    im_filtered[i][j] += im_zp[i + k][j + l] * filter[filter.shape[0] - k - 1][filter.shape[1] - l -1]
     return im_filtered
 
 
 def get_gradient(im_dx, im_dy):
     # To do
+    (rows, columns) = im.shape
+    grad_mag = np.empty([rows, columns])
+    grad_angle = np.empty([rows, columns])
+
+    for i in range(rows):
+        for j in range(columns):
+            grad_mag[i][j] = np.sqt(im_dx[i][j] ** 2 + im_dy[i][j] ** 2)
+            grad_angle[i][j] = (np.arctan2(im_dy[i][j], im_dx[i][j]) + np.pi) % np.pi
     return grad_mag, grad_angle
 
 
 def build_histogram(grad_mag, grad_angle, cell_size):
     # To do
+    (rows, columns) = im.shape
+    M = int(rows / cell_size)
+    N = int(columns / cell_size)
+    ori_histo = np.zeros(M, N, 6)
+    for i in range(M):
+        for j in range(N):
+            for k in range(cell_size):
+                for l in range(cell_size):
+                    angle = grad_angle[k + cell_size * i][l + cell_size * j]
+                    mag = grad_mag[k + cell_size * i][l + cell_size * j]
+                    if ((angle >= 2.8798) and (angle < np.pi)) or ((angle >= 0) and (angle < 0.2618)):
+                        ori_histo[i][j][0] += mag
+                    elif (angle >= 0.2618) and (angle < 0.7854):
+                        ori_histo[i][j][1] += mag
+                    elif (angle >= 0.7854) and (angle < 1.3090):
+                        ori_histo[i][j][2] += mag
+                    elif (angle >= 1.309) and (angle < 1.8326):
+                        ori_histo[i][j][3] += mag
+                    elif (angle >= 1.8326) and (angle < 2.3562):
+                        ori_histo[i][j][4] += mag
+                    else:
+                        ori_histo[i][j][5] += mag
     return ori_histo
 
 
@@ -109,6 +155,12 @@ def visualize_face_detection(I_target,bounding_boxes,box_size):
 if __name__=='__main__':
 
     im = cv2.imread('cameraman.tif', 0)
+    fx, fy = get_differential_filter()
+    ix = filter_image(im, fx)
+    iy = filter_image(im, fy)
+    cv2.imshow('ix', ix)
+    cv2.imshow('iy', iy)
+    cv2.waitKey(0)
     hog = extract_hog(im)
 
     I_target= cv2.imread('target.png', 0)
