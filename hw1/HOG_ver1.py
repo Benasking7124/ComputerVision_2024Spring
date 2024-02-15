@@ -8,8 +8,8 @@ Do not change the input/output of each function, and do not remove the provided 
 
 def get_differential_filter():
     # To do
-    filter_x = np.array([[1, 0, -1], [1, 0, -1], [1, 0, -1]])
-    filter_y = np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]])
+    filter_x = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
+    filter_y = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
     return filter_x, filter_y
 
 
@@ -77,15 +77,16 @@ def get_block_descriptor(ori_histo, block_size):
     ori_histo_normalized = np.empty([(ori_histo.shape[0] - (block_size - 1)), (ori_histo.shape[1] - (block_size - 1)), (6 * block_size * block_size)])
     for i in range(ori_histo_normalized.shape[0]):
         for j in range(ori_histo_normalized.shape[1]):
+            h_sum = 0
             for k in range(6):
-                h_sum = 0
                 for l in range(block_size):
                     for m in range(block_size):
                         ori_histo_normalized[i][j][k + (l + m * block_size) * 6] = ori_histo[i + l][j + m][k]
-                        h_sum += ori_histo[i + l][j + m][k]
-                h_sum = np.sqrt(h_sum + 0.001 ** 2)
-                for l in range(block_size * block_size):
-                    ori_histo_normalized[i][j][k + l * 6] /= h_sum
+                        h_sum += ori_histo[i + l][j + m][k] ** 2
+
+            h_sum = np.sqrt(h_sum + 0.001 ** 2)
+            for k in range(ori_histo_normalized.shape[2]):
+                ori_histo_normalized[i][j][k] /= h_sum
 
     return ori_histo_normalized
 
@@ -139,7 +140,7 @@ def face_recognition(I_target, I_template):
             norm_target = 0
             for k in range(hog_template.shape[0]):
                 for l in range(hog_template.shape[1]):
-                    for m in range(6):
+                    for m in range(24):
                         norm_template += hog_template[k][l][m] ** 2
                         norm_target += hog_target[i + k][j + l][m] ** 2
                         s_i += hog_template[k][l][m] * hog_target[i + k][j + l][m]
@@ -147,10 +148,8 @@ def face_recognition(I_target, I_template):
             norm_target = np.sqrt(norm_target)
             s_i = s_i / (norm_template * norm_target)
 
-            if (j > 230):
-                print("yes")
-            if (s_i > 0.5):
-                bounding_boxes = np.append(bounding_boxes, np.array([[i, j, s_i]]), axis=0)
+            if (s_i > 0.7):
+                bounding_boxes = np.append(bounding_boxes, np.array([[j * 8, i * 8, s_i]]), axis=0)
     return  bounding_boxes
 
 
