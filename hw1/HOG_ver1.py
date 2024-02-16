@@ -103,7 +103,7 @@ def extract_hog(im):
     hog = get_block_descriptor(histo, 2)
 
     # visualize to verify
-    visualize_hog(im, hog, 8, 2)
+    # visualize_hog(im, hog, 8, 2)
 
     return hog
 
@@ -132,6 +132,8 @@ def face_recognition(I_target, I_template):
     # To do
     bounding_boxes = np.empty([0, 3])
     hog_template = extract_hog(I_template)
+
+    # HoG over whole target version
     hog_target = extract_hog(I_target)
     for i in range(hog_target.shape[0] - hog_template.shape[0]):
         for j in range(hog_target.shape[1] - hog_template.shape[1]):
@@ -147,13 +149,43 @@ def face_recognition(I_target, I_template):
             norm_template = np.sqrt(norm_template)
             norm_target = np.sqrt(norm_target)
             s_i = s_i / (norm_template * norm_target)
-
             if (s_i > 0.6):
                 bounding_boxes = np.append(bounding_boxes, np.array([[j * 8, i * 8, s_i]]), axis=0)
+
+    # HoG individully version
+    # for i in range(0, I_target.shape[0] - I_template.shape[0], 4):
+    #     print(i)
+    #     for j in range(0, I_target.shape[1] - I_template.shape[1], 4):
+    #         I_target_sub = np.empty(I_template.shape)
+    #         for k in range(I_template.shape[0]):
+    #             for l in range(I_template.shape[1]):
+    #                 I_target_sub[k][l] = I_target[i + k][j + l]
+    #         hog_target = extract_hog(I_target_sub)
+
+    #         s_i = 0
+    #         norm_template = 0
+    #         norm_target = 0
+    #         for k in range(hog_template.shape[0]):
+    #             for l in range(hog_template.shape[1]):
+    #                 for m in range(24):
+    #                     norm_template += hog_template[k][l][m] ** 2
+    #                     norm_target += hog_target[k][l][m] ** 2
+    #                     s_i += hog_template[k][l][m] * hog_target[k][l][m]
+    #         norm_template = np.sqrt(norm_template)
+    #         norm_target = np.sqrt(norm_target)
+    #         s_i = s_i / (norm_template * norm_target)
+
+    #         if (s_i > 0.65):
+    #             bounding_boxes = np.append(bounding_boxes, np.array([[j, i, s_i]]), axis=0)
     
+    # Non Maximum Suppression
     two_bounding_boxes_area = I_template.shape[0] * I_template.shape[0] * 2
+    bounding_boxes = np.array(sorted(bounding_boxes, reverse=True, key = lambda x:x[2]))
     for i in range(bounding_boxes.shape[0]):
+        # print(bounding_boxes)
         delete_list = []
+
+        # Calculate IoU
         for j in range(i + 1, bounding_boxes.shape[0]):
             IoU = 0
             intersection = 0
@@ -164,9 +196,9 @@ def face_recognition(I_target, I_template):
             IoU = intersection / (two_bounding_boxes_area - intersection)
 
             if (IoU > 0.5):
-                print(bounding_boxes[j])
                 delete_list.append(j)
         bounding_boxes = np.delete(bounding_boxes, delete_list, 0)
+
     return bounding_boxes
 
 
