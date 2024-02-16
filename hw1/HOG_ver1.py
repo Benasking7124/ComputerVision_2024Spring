@@ -148,9 +148,26 @@ def face_recognition(I_target, I_template):
             norm_target = np.sqrt(norm_target)
             s_i = s_i / (norm_template * norm_target)
 
-            if (s_i > 0.7):
+            if (s_i > 0.6):
                 bounding_boxes = np.append(bounding_boxes, np.array([[j * 8, i * 8, s_i]]), axis=0)
-    return  bounding_boxes
+    
+    two_bounding_boxes_area = I_template.shape[0] * I_template.shape[0] * 2
+    for i in range(bounding_boxes.shape[0]):
+        delete_list = []
+        for j in range(i + 1, bounding_boxes.shape[0]):
+            IoU = 0
+            intersection = 0
+            for x in range(int(bounding_boxes[i][0]), (int(bounding_boxes[i][0]) + I_template.shape[0])):
+                for y in range(int(bounding_boxes[i][1]), (int(bounding_boxes[i][1]) + I_template.shape[0])):
+                    if (x >= bounding_boxes[j][0]) and (x <= (bounding_boxes[j][0] + I_template.shape[0])) and (y >= bounding_boxes[j][1]) and (y <= (bounding_boxes[j][1] + I_template.shape[0])):
+                        intersection += 1
+            IoU = intersection / (two_bounding_boxes_area - intersection)
+
+            if (IoU > 0.5):
+                print(bounding_boxes[j])
+                delete_list.append(j)
+        bounding_boxes = np.delete(bounding_boxes, delete_list, 0)
+    return bounding_boxes
 
 
 def visualize_face_detection(I_target,bounding_boxes,box_size):
