@@ -134,54 +134,49 @@ def face_recognition(I_target, I_template):
 
     # HoG over whole target version
     # hog_template = extract_hog(I_template)
-    # hog_mean = np.mean(hog_template)
-    # for i in range(hog_template.shape[0]):
-    #     for j in range(hog_template.shape[1]):
-    #         for k in range(hog_template.shape[2]):
-    #             hog_template[i][j][k] -= hog_mean
+    # hog_template -= np.mean(hog_template)
 
     # hog_target = extract_hog(I_target)
-    # hog_mean = np.mean(hog_target)
-    # for i in range(hog_target.shape[0]):
-    #     for j in range(hog_target.shape[1]):
-    #         for k in range(hog_target.shape[2]):
-    #             hog_target[i][j][k] -= hog_mean
 
     # for i in range(hog_target.shape[0] - hog_template.shape[0]):
     #     for j in range(hog_target.shape[1] - hog_template.shape[1]):
+    #         hog_target_sub = hog_target[i:(i + hog_template.shape[0]), j:(j + hog_template.shape[1])]
+    #         hog_target_sub -= np.mean(hog_target_sub)
+            
     #         s_i = 0
     #         norm_template = 0
     #         norm_target = 0
+    #         # for k in range(hog_template.shape[0]):
+    #         #     for l in range(hog_template.shape[1]):
+    #         #         for m in range(24):
+    #         #             norm_template += hog_template[k][l][m] ** 2
+    #         #             norm_target += hog_target[i + k][j + l][m] ** 2
+    #         #             s_i += hog_template[k][l][m] * hog_target[i + k][j + l][m]
+
+    #         # Substract mean
     #         for k in range(hog_template.shape[0]):
     #             for l in range(hog_template.shape[1]):
     #                 for m in range(24):
     #                     norm_template += hog_template[k][l][m] ** 2
-    #                     norm_target += hog_target[i + k][j + l][m] ** 2
-    #                     s_i += hog_template[k][l][m] * hog_target[i + k][j + l][m]
+    #                     norm_target += hog_target_sub[k][l][m] ** 2
+    #                     s_i += hog_template[k][l][m] * hog_target_sub[k][l][m]
     #         norm_template = np.sqrt(norm_template)
     #         norm_target = np.sqrt(norm_target)
     #         s_i = s_i / (norm_template * norm_target)
-    #         if (s_i > 0.6):
+    #         if (s_i > 0.25):
     #             bounding_boxes = np.append(bounding_boxes, np.array([[j * 8, i * 8, s_i]]), axis=0)
 
     # HoG individully version
     hog_template = extract_hog(I_template).flatten()
-    hog_mean = np.mean(hog_template)
-    for i in range(hog_template.shape[0]):
-        hog_template[i] -= hog_mean
+    hog_template -= np.mean(hog_template)
 
     iterate_step = 4
     for i in range(0, I_target.shape[0] - I_template.shape[0], iterate_step):
         print(i)
         for j in range(0, I_target.shape[1] - I_template.shape[1], iterate_step):
-            I_target_sub = np.empty(I_template.shape)
-            for k in range(I_template.shape[0]):
-                for l in range(I_template.shape[1]):
-                    I_target_sub[k][l] = I_target[i + k][j + l]
+            I_target_sub = I_target[i:( i+ I_template.shape[0]), j:(j + I_template.shape[1])]
             hog_target = extract_hog(I_target_sub).flatten()
-            hog_mean = np.mean(hog_target)
-            for k in range(hog_target.shape[0]):
-                hog_target[k] -= hog_mean
+            hog_target -= np.mean(hog_target)
 
             s_i = 0
             norm_template = 0
