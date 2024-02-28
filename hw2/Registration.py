@@ -83,6 +83,35 @@ def visualize_find_match(img1, img2, x1, x2, img_h=500):
     plt.axis('off')
     plt.show()
 
+def visualize_align_image_using_feature(img1, img2, x1, x2, A, ransac_thr, img_h=500):
+    x2_t = np.hstack((x1, np.ones((x1.shape[0], 1)))) @ A.T
+    errors = np.sum(np.square(x2_t[:, :2] - x2), axis=1)
+    mask_inliers = errors < ransac_thr
+    boundary_t = np.hstack(( np.array([[0, 0], [img1.shape[1], 0], [img1.shape[1], img1.shape[0]], [0, img1.shape[0]], [0, 0]]), np.ones((5, 1)) )) @ A[:2, :].T
+
+    scale_factor1 = img_h/img1.shape[0]
+    scale_factor2 = img_h/img2.shape[0]
+    img1_resized = cv2.resize(img1, None, fx=scale_factor1, fy=scale_factor1)
+    img2_resized = cv2.resize(img2, None, fx=scale_factor2, fy=scale_factor2)
+    x1 = x1 * scale_factor1
+    x2 = x2 * scale_factor2
+    x2[:, 0] += img1_resized.shape[1]
+    img = np.hstack((img1_resized, img2_resized))
+    plt.imshow(img, cmap='gray', vmin=0, vmax=255)
+
+    boundary_t = boundary_t * scale_factor2
+    boundary_t[:, 0] += img1_resized.shape[1]
+    plt.plot(boundary_t[:, 0], boundary_t[:, 1], 'y')
+    for i in range(x1.shape[0]):
+        if mask_inliers[i]:
+            plt.plot([x1[i, 0], x2[i, 0]], [x1[i, 1], x2[i, 1]], 'g')
+            plt.plot([x1[i, 0], x2[i, 0]], [x1[i, 1], x2[i, 1]], 'go')
+        else:
+            plt.plot([x1[i, 0], x2[i, 0]], [x1[i, 1], x2[i, 1]], 'r')
+            plt.plot([x1[i, 0], x2[i, 0]], [x1[i, 1], x2[i, 1]], 'ro')
+    plt.axis('off')
+    plt.show()
+
 def visualize_align_image(template, target, A, A_refined, errors=None):
     img_warped_init = warp_image(target, A, template.shape)
     img_warped_optim = warp_image(target, A_refined, template.shape)
@@ -173,17 +202,17 @@ if __name__ == '__main__':
     x1, x2 = find_match(template, target_list[0])
     visualize_find_match(template, target_list[0], x1, x2)
 
-    # A = align_image_using_feature(x1, x2, ransac_thr, ransac_iter)
+    A = align_image_using_feature(x1, x2, ransac_thr, ransac_iter)
 
-    # img_warped = warp_image(target_list[0], A, template.shape)
-    # plt.imshow(img_warped, cmap='gray', vmin=0, vmax=255)
-    # plt.axis('off')
-    # plt.show()
+    img_warped = warp_image(target_list[0], A, template.shape)
+    plt.imshow(img_warped, cmap='gray', vmin=0, vmax=255)
+    plt.axis('off')
+    plt.show()
 
-    # A_refined, errors = align_image(template, target_list[0], A)
-    # visualize_align_image(template, target_list[0], A, A_refined, errors)
+    A_refined, errors = align_image(template, target_list[1], A)
+    visualize_align_image(template, target_list[1], A, A_refined, errors)
 
-    # A_list = track_multi_frames(template, target_list)
-    # visualize_track_multi_frames(template, target_list, A_list)
+    A_list = track_multi_frames(template, target_list)
+    visualize_track_multi_frames(template, target_list, A_list)
 
 
