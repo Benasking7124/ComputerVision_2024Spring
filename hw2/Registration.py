@@ -8,6 +8,43 @@ from scipy import interpolate
 
 def find_match(img1, img2):
     # To do
+    sift = cv2.SIFT_create()
+    kp1, descriptor1 = sift.detectAndCompute(img1, None)
+    kp2, descriptor2 = sift.detectAndCompute(img2, None)
+
+    # matching img2 to img1
+    knn2 = NearestNeighbors(n_neighbors=2, algorithm='ball_tree').fit(descriptor2)
+    distance12, neighbors12 = knn2.kneighbors(descriptor1)
+    keep_list = []
+    for i in range(len(distance12)):
+        if (distance12[i][0] / distance12[i][1]) < 0.7:
+            keep_list.append(i)
+
+    matching12 = []
+    for x in keep_list:
+        matching12.append((kp1[x].pt, kp2[neighbors12[x][0]].pt))
+
+    # matching img1 to img2
+    knn1 = NearestNeighbors(n_neighbors=2, algorithm='ball_tree').fit(descriptor1)
+    distance21, neighbors21 = knn1.kneighbors(descriptor2)
+    keep_list = []
+    for i in range(len(distance21)):
+        if (distance21[i][0] / distance21[i][1]) < 0.7:
+            keep_list.append(i)
+    
+    matching21 = []
+    for x in keep_list:
+        matching21.append((kp1[neighbors21[x][0]].pt, kp2[x].pt))
+
+    # bi-directional consistency check
+    x1 = np.empty([0, 2])
+    x2 = np.empty([0, 2])
+    for p1 in matching12:
+        for p2 in matching21:
+            if p1 == p2:
+                x1 = np.append(x1, np.array([p1[0]]), axis=0)
+                x2 = np.append(x2, np.array([p1[1]]), axis=0)
+
     return x1, x2
 
 def align_image_using_feature(x1, x2, ransac_thr, ransac_iter):
@@ -136,17 +173,17 @@ if __name__ == '__main__':
     x1, x2 = find_match(template, target_list[0])
     visualize_find_match(template, target_list[0], x1, x2)
 
-    A = align_image_using_feature(x1, x2, ransac_thr, ransac_iter)
+    # A = align_image_using_feature(x1, x2, ransac_thr, ransac_iter)
 
-    img_warped = warp_image(target_list[0], A, template.shape)
-    plt.imshow(img_warped, cmap='gray', vmin=0, vmax=255)
-    plt.axis('off')
-    plt.show()
+    # img_warped = warp_image(target_list[0], A, template.shape)
+    # plt.imshow(img_warped, cmap='gray', vmin=0, vmax=255)
+    # plt.axis('off')
+    # plt.show()
 
-    A_refined, errors = align_image(template, target_list[0], A)
-    visualize_align_image(template, target_list[0], A, A_refined, errors)
+    # A_refined, errors = align_image(template, target_list[0], A)
+    # visualize_align_image(template, target_list[0], A, A_refined, errors)
 
-    A_list = track_multi_frames(template, target_list)
-    visualize_track_multi_frames(template, target_list, A_list)
+    # A_list = track_multi_frames(template, target_list)
+    # visualize_track_multi_frames(template, target_list, A_list)
 
 
