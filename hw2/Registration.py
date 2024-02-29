@@ -49,6 +49,58 @@ def find_match(img1, img2):
 
 def align_image_using_feature(x1, x2, ransac_thr, ransac_iter):
     # To do
+    A = np.empty([4, 4])
+    max_n_inlier = 0
+    max_inliers = []
+
+    for i in range(ransac_iter):
+        n_inlier = 0
+        inliers = []
+        # Random sampling: randomly select 3 points
+        n = np.random.default_rng().choice(range(x1.shape[0]), size = 3, replace=False)
+        
+        # Model building: compute homography
+        point1_array = np.array([[x1[n[0]][0], x1[n[0]][1], 1, 0, 0, 0],
+                                 [0, 0, 0, x1[n[0]][0], x1[n[0]][1], 1],
+                                 [x1[n[1]][0], x1[n[1]][1], 1, 0, 0, 0],
+                                 [0, 0, 0, x1[n[1]][0], x1[n[1]][1], 1],
+                                 [x1[n[2]][0], x1[n[2]][1], 1, 0, 0, 0],
+                                 [0, 0, 0, x1[n[2]][0], x1[n[2]][1], 1],])
+        point2_array = np.transpose(np.array([[x2[n[0]][0], x2[n[0]][1], x2[n[1]][0], x2[n[1]][1], x2[n[2]][0], x2[n[2]][1]]]))
+        h_param = np.matmul(np.linalg.pinv(point1_array), point2_array)
+        A_temp = np.array([[h_param[0][0], h_param[1][0], h_param[2][0]],
+                           [h_param[3][0], h_param[4][0], h_param[5][0]],
+                           [0, 0, 1]])
+
+        # Tresholding & Inlier counting: compute inliers
+        for i in range(x1.shape[0]):
+            x2_est = np.matmul(A_temp, np.transpose([x1[i][0], x1[i][1], 1]))
+            x2_est = np.array([(x2_est[0] / x2_est[2]), (x2_est[1] / x2_est[2])])
+            difference = np.linalg.norm(x2[i] - x2_est)
+            if difference < ransac_thr:
+                inliers.append(i)
+                n_inlier += 1
+        
+        if (n_inlier > max_n_inlier):
+            A = A_temp
+            max_n_inlier = n_inlier
+            max_inliers = list(inliers)
+
+    # Re-compute H using least-squares
+    point1_array = []
+    point2_array = []
+    for i in max_inliers:
+        point1_array.append([x1[i][0], x1[i][1], 1, 0, 0, 0])
+        point1_array.append([0, 0, 0, x1[i][0], x1[i][1], 1])
+        point2_array.append(x2[i][0])
+        point2_array.append(x2[i][1])
+    point1_array = np.array(point1_array)
+    point2_array = np.array(point2_array)
+    h_param= np.linalg.lstsq(point1_array, point2_array)
+    A = np.array([[h_param[0][0], h_param[0][1], h_param[0][2]],
+                  [h_param[0][3], h_param[0][4], h_param[0][5]],
+                  [0, 0, 1]])
+    print(max_n_inlier)
     return A
 
 def warp_image(img, A, output_size):
@@ -200,9 +252,12 @@ if __name__ == '__main__':
         target_list.append(target)
 
     x1, x2 = find_match(template, target_list[0])
-    visualize_find_match(template, target_list[0], x1, x2)
+    # visualize_find_match(template, target_list[0], x1, x2)
 
+    ransac_thr = 1
+    ransac_iter = 100
     A = align_image_using_feature(x1, x2, ransac_thr, ransac_iter)
+    visualize_align_image_using_feature(template, target_list[0], x1, x2, A, ransac_thr)
 
     img_warped = warp_image(target_list[0], A, template.shape)
     plt.imshow(img_warped, cmap='gray', vmin=0, vmax=255)
