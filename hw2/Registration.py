@@ -105,6 +105,23 @@ def align_image_using_feature(x1, x2, ransac_thr, ransac_iter):
 
 def warp_image(img, A, output_size):
     # To do
+    img_warped = np.empty(output_size)
+    interp = interpolate.RegularGridInterpolator([range(img.shape[0]), range(img.shape[1])], img)
+
+    for i in range(img_warped.shape[0]):
+        for j in range(img_warped.shape[1]):
+            p = np.matmul(A, np.transpose([j, i, 1]))
+            p = [(p[0] / p[2]), (p[1] / p[2])]
+            if (p[0] < 0):
+                p[0] = 0
+            elif (p[0] > img.shape[1]):
+                p[0] = img.shape[1]
+            if (p[1] < 0):
+                p[1] = 0
+            elif (p[1] > img.shape[0]):
+                p[1] = img.shape[0]
+            img_warped[i][j] = interp([p[1], p[0]])[0]
+            print(i, j)
     return img_warped
 
 
@@ -261,6 +278,11 @@ if __name__ == '__main__':
 
     img_warped = warp_image(target_list[0], A, template.shape)
     plt.imshow(img_warped, cmap='gray', vmin=0, vmax=255)
+    plt.axis('off')
+    plt.show()
+
+    img_error = template - img_warped
+    plt.imshow(img_error)
     plt.axis('off')
     plt.show()
 
