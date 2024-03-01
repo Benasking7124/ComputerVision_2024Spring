@@ -121,17 +121,83 @@ def warp_image(img, A, output_size):
             elif (p[1] > img.shape[0]):
                 p[1] = img.shape[0]
             img_warped[i][j] = interp([p[1], p[0]])[0]
-            print(i, j)
+            print("Warping image...", i, j)
     return img_warped
+
+
+def filter_image(im, filter):
+    # To do
+    (rows, columns) = im.shape
+    im_filtered = np.zeros([rows, columns])
+
+    # Zero padding
+    padding_nx = int(filter.shape[1] / 2)
+    padding_ny = int(filter.shape[0] / 2)
+    im_zp = np.pad(im, ((padding_ny, padding_ny), (padding_nx, padding_nx)), 'constant', constant_values=0)
+    
+    # Convolution
+    for i in range(rows):
+        for j in range(columns):
+            for k in range(filter.shape[0]):
+                for l in range(filter.shape[1]):
+                    im_filtered[i][j] += im_zp[i + k][j + l] * filter[filter.shape[0] - k - 1][filter.shape[1] - l -1]
+    return im_filtered
 
 
 def align_image(template, target, A):
     # To do
+    # initialize p=p0 from input A
+    p = np.array([A[0][0], A[0][1], A[0][2], A[1][0], A[1][1], A[1][2]])
+    A_refined = A
+
+    # compute the gradient of the template image
+    ix = filter_image(template, np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]]))
+    iy = filter_image(template, np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]]))
+
+    # compute the steepest decent images
+    I_sd = np.empty([template.shape[0], template.shape[1], 6])
+    for i in range(template.shape[0]):
+        for j in range(template.shape[1]):
+            I_sd[i][j] = np.matmul(np.array([ix[i][j], iy[i][j]]), np.array([[j, i, 1, 0, 0, 0], [0, 0, 0, j, i, 1]]))
+
+    # compute Hessian
+    hessian = np.zeros([6, 6])
+    for i in range(template.shape[0]):
+        for j in range(template.shape[1]):
+            I_sd_x_2d = I_sd[i][j][np.newaxis, :]
+            hessian += np.matmul(np.transpose(I_sd_x_2d), I_sd_x_2d)
+
+    i = 0
+    while True:
+        I_tgt_warp = warp_image(target, A_refined, template.shape)
+        I_error = I_tgt_warp - template
+
+        # compute F
+        F_function = np.zeros([6, 1])
+        for i in range(template.shape[0]):
+            for j in range(template.shape[1]):
+                I_sd_x_2d_transpose = np.transpose(I_sd[i][j][np.newaxis, :])
+                F_function += I_sd_x_2d_transpose * I_error[i][j]
+        
+        # compute delta_p
+        delta_p = np.matmul(np.linalg.inv(hessian), F_function).flatten()
+        p = p + delta_p
+        A_refined = np.vstack((p.reshape(2, 3),  np.array([0, 0, 1])))
+
+        print("Aligning image..., iteration:", i, "norm(delta_p)", np.linalg.norm(delta_p))
+        if np.linalg.norm(delta_p) < 0.13:
+            break
     return A_refined
 
 
 def track_multi_frames(template, img_list):
     # To do
+    x1, x2 = find_match(template, target_list[0])
+    A = align_image_using_feature(x1, x2, ransac_thr, ransac_iter)
+    A_list = [A]
+    for I_tgt in img_list[1:]:
+        A = align_image(template, I_tgt, A)
+        A_list.append(A)
     return A_list
 
 
@@ -269,7 +335,7 @@ if __name__ == '__main__':
         target_list.append(target)
 
     x1, x2 = find_match(template, target_list[0])
-    # visualize_find_match(template, target_list[0], x1, x2)
+    visualize_find_match(template, target_list[0], x1, x2)
 
     ransac_thr = 1
     ransac_iter = 100
@@ -286,8 +352,8 @@ if __name__ == '__main__':
     plt.axis('off')
     plt.show()
 
-    A_refined, errors = align_image(template, target_list[1], A)
-    visualize_align_image(template, target_list[1], A, A_refined, errors)
+    A_refined = align_image(template, target_list[1], A)
+    visualize_align_image(template, target_list[1], A, A_refined)
 
     A_list = track_multi_frames(template, target_list)
     visualize_track_multi_frames(template, target_list, A_list)
