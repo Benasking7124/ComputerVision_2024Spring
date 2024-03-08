@@ -105,23 +105,17 @@ def align_image_using_feature(x1, x2, ransac_thr, ransac_iter):
 
 def warp_image(img, A, output_size):
     # To do
-    img_warped = np.empty(output_size)
-    interp = interpolate.RegularGridInterpolator([range(img.shape[0]), range(img.shape[1])], img)
+    # Get warp coordinate
+    x_cor, y_cor = np.meshgrid(range(output_size[1]), range(output_size[0]), indexing = 'xy')
+    warp_cooradinate = np.stack((x_cor.reshape(-1), y_cor.reshape(-1), np.ones(output_size).reshape(-1)))
+    warp_cooradinate = A @ warp_cooradinate
+    warp_cooradinate = warp_cooradinate[:2, :].T
 
-    for i in range(img_warped.shape[0]):
-        for j in range(img_warped.shape[1]):
-            p = np.matmul(A, np.transpose([j, i, 1]))
-            p = [(p[0] / p[2]), (p[1] / p[2])]
-            if (p[0] < 0):
-                p[0] = 0
-            elif (p[0] > img.shape[1]):
-                p[0] = img.shape[1]
-            if (p[1] < 0):
-                p[1] = 0
-            elif (p[1] > img.shape[0]):
-                p[1] = img.shape[0]
-            img_warped[i][j] = interp([p[1], p[0]])[0]
-            print("Warping image...", i, j)
+    # Get image coordinate
+    img_coordinate = (range(img.shape[1]), range(img.shape[0]))
+    img_warped = interpolate.interpn(img_coordinate, img.T, warp_cooradinate, method = 'linear', bounds_error = False, fill_value = None)
+    img_warped = img_warped.reshape(output_size)
+
     return img_warped
 
 
@@ -167,7 +161,7 @@ def align_image(template, target, A):
             I_sd_x_2d = I_sd[i][j][np.newaxis, :]
             hessian += np.matmul(np.transpose(I_sd_x_2d), I_sd_x_2d)
 
-    i = 0
+    iteration = 0
     while True:
         I_tgt_warp = warp_image(target, A_refined, template.shape)
         I_error = I_tgt_warp - template
@@ -184,8 +178,9 @@ def align_image(template, target, A):
         p = p + delta_p
         A_refined = np.vstack((p.reshape(2, 3),  np.array([0, 0, 1])))
 
-        print("Aligning image..., iteration:", i, "norm(delta_p)", np.linalg.norm(delta_p))
-        if np.linalg.norm(delta_p) < 0.13:
+        print("Aligning image..., iteration:", iteration, "norm(delta_p)", np.linalg.norm(delta_p))
+        iteration += 1
+        if np.linalg.norm(delta_p) < 0.1:
             break
     return A_refined
 
@@ -335,22 +330,22 @@ if __name__ == '__main__':
         target_list.append(target)
 
     x1, x2 = find_match(template, target_list[0])
-    visualize_find_match(template, target_list[0], x1, x2)
+    # visualize_find_match(template, target_list[0], x1, x2)
 
     ransac_thr = 1
     ransac_iter = 100
     A = align_image_using_feature(x1, x2, ransac_thr, ransac_iter)
-    visualize_align_image_using_feature(template, target_list[0], x1, x2, A, ransac_thr)
+    # visualize_align_image_using_feature(template, target_list[0], x1, x2, A, ransac_thr)
 
-    img_warped = warp_image(target_list[0], A, template.shape)
-    plt.imshow(img_warped, cmap='gray', vmin=0, vmax=255)
-    plt.axis('off')
-    plt.show()
+    # img_warped = warp_image(target_list[0], A, template.shape)
+    # plt.imshow(img_warped, cmap='gray', vmin=0, vmax=255)
+    # plt.axis('off')
+    # plt.show()
 
-    img_error = template - img_warped
-    plt.imshow(img_error)
-    plt.axis('off')
-    plt.show()
+    # img_error = template - img_warped
+    # plt.imshow(img_error)
+    # plt.axis('off')
+    # plt.show()
 
     A_refined = align_image(template, target_list[1], A)
     visualize_align_image(template, target_list[1], A, A_refined)
