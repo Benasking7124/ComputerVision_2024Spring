@@ -36,8 +36,11 @@ def extract_dataset_info(data_path):
     return label_classes, label_train_list, img_train_list, label_test_list, img_test_list
 
 
-def compute_dsift(img):
+def compute_dsift(img, stride, size):
     # To do
+    sift = cv2.SIFT_create()
+    keypoints = [cv2.KeyPoint(x, y, size) for y in range(0, img.shape[0], stride) for x in range(0, img.shape[1], stride)]
+    _, dense_feature = sift.compute(img, keypoints)
     return dense_feature
 
 
@@ -71,14 +74,14 @@ def predict_knn(feature_train, label_train, feature_test, k):
 def classify_knn_tiny(label_classes, label_train_list, img_train_list, label_test_list, img_test_list):
     # To do
     # Create training img list
-    feature_list = []
+    train_list = []
     for x in img_train_list:
         img = cv2.imread(x, 0)
         tiny = get_tiny_image(img, 16)
-        feature_list.append(tiny)
-    feature_list = np.array(feature_list)
-    nsamples, nx, ny = feature_list.shape
-    feature_list.resize((nsamples, nx * ny))
+        train_list.append(tiny)
+    train_list = np.array(train_list)
+    nsamples, nx, ny = train_list.shape
+    train_list.resize((nsamples, nx * ny))
 
     # Create testing img list
     test_list = []
@@ -91,7 +94,7 @@ def classify_knn_tiny(label_classes, label_train_list, img_train_list, label_tes
     test_list.resize((nsamples, nx * ny))
 
     # Predict KNN
-    label_prediction_list = predict_knn(feature_list, label_train_list, test_list, 5)
+    label_prediction_list = predict_knn(train_list, label_train_list, test_list, 5)
 
     # Counting number of data for each label
     numbers_of_data = [0] * len(label_classes)
@@ -111,23 +114,60 @@ def classify_knn_tiny(label_classes, label_train_list, img_train_list, label_tes
             if (i == j):
                 accuracy += confusion[i][j]
     accuracy /= len(label_classes)
-    
+
     visualize_confusion_matrix(confusion, accuracy, label_classes)
     return confusion, accuracy
 
 
 def build_visual_dictionary(dense_feature_list, dict_size):
     # To do
+    data_list = np.concatenate([np.split(array, array.shape[0]) for array in dense_feature_list])
+    data_list = data_list.reshape(data_list.shape[0], data_list.shape[2])
+    print("start")
+    import time
+    before = time.time()
+    print(before)
+    kmeans = KMeans(n_clusters = dict_size).fit(data_list)
+    duration = time.time() - before
+    print(duration)
+    vocab = kmeans.cluster_centers_
+    np.savetxt("vocabulary.txt", vocab)
     return vocab
 
 
 def compute_bow(feature, vocab):
     # To do
+    bow_feature = np.zeros((vocab.shape[0]))
+    knn = NearestNeighbors(n_neighbors=1, algorithm='auto').fit(vocab)
+    _, index = knn.kneighbors(feature)
+    index = index.reshape(-1)
+
+    for i in index:
+        bow_feature[i] += 1
+    bow_feature /= np.linalg.norm(bow_feature)
+    
     return bow_feature
 
 
 def classify_knn_bow(label_classes, label_train_list, img_train_list, label_test_list, img_test_list):
     # To do
+    # Create training feature list
+    train_list = []
+    for x in img_train_list:
+        img = cv2.imread(x, 0)
+        dsift = compute_dsift(img, 10, 3)
+        train_list.append(dsift)
+
+    # Create testing feature list
+    test_list = []
+    for x in img_test_list:
+        img = cv2.imread(x, 0)
+        dsift = compute_dsift(img, 10, 3)
+        test_list.append(dsift)
+
+    # Build Vocabulary
+    vocabularies = build_visual_dictionary(train_list, 50)
+    
     visualize_confusion_matrix(confusion, accuracy, label_classes)
     return confusion, accuracy
 
@@ -163,7 +203,11 @@ if __name__ == '__main__':
     # To do: replace with your dataset path
     label_classes, label_train_list, img_train_list, label_test_list, img_test_list = extract_dataset_info("./scene_classification_data")
 
-    classify_knn_tiny(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
+    img = cv2.imread("scene_classification_data/test/Bedroom/image_0003.jpg", 0)
+    dsift = compute_dsift(img, 10, 3)
+    voc = np.loadtxt("vocabulary.txt")
+    compute_bow(dsift, voc)
+    # classify_knn_tiny(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
 
     classify_knn_bow(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
     
