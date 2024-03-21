@@ -155,14 +155,14 @@ def classify_knn_bow(label_classes, label_train_list, img_train_list, label_test
     train_list = []
     for x in img_train_list:
         img = cv2.imread(x, 0)
-        dsift = compute_dsift(img, 3, 3)
+        dsift = compute_dsift(img, 5, 10)
         train_list.append(dsift)
 
     # Create testing feature list
     test_list = []
     for x in img_test_list:
         img = cv2.imread(x, 0)
-        dsift = compute_dsift(img, 3, 3)
+        dsift = compute_dsift(img, 5, 10)
         test_list.append(dsift)
 
     # Build Vocabulary
@@ -179,7 +179,7 @@ def classify_knn_bow(label_classes, label_train_list, img_train_list, label_test
         test_bow_list.append(compute_bow(x, vocabularies))
     
     # Train KNN
-    n_neighbor = 5
+    n_neighbor = 10
     knn = NearestNeighbors(n_neighbors = n_neighbor, algorithm = 'ball_tree').fit(train_bow_list)
     _, nbrs = knn.kneighbors(test_bow_list)
 
@@ -255,7 +255,7 @@ if __name__ == '__main__':
     # dsift = compute_dsift(img, 10, 3)
     # compute_bow(dsift, voc)
     
-    classify_knn_tiny(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
+    # classify_knn_tiny(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
 
     classify_knn_bow(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
     
