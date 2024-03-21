@@ -62,7 +62,7 @@ def predict_knn(feature_train, label_train, feature_test, k):
         class_counter[x] = 0
 
     label_test_pred = []
-    for i in range(feature_test.shape[0]):
+    for i in range(nbrs.shape[0]):
         for j in range(k):
             class_counter[label_train[nbrs[i][j]]] += 1
         label_test_pred.append(max(class_counter, key=lambda key: class_counter[key]))
@@ -145,7 +145,7 @@ def compute_bow(feature, vocab):
     for i in index:
         bow_feature[i] += 1
     bow_feature /= np.linalg.norm(bow_feature)
-    
+
     return bow_feature
 
 
@@ -155,19 +155,67 @@ def classify_knn_bow(label_classes, label_train_list, img_train_list, label_test
     train_list = []
     for x in img_train_list:
         img = cv2.imread(x, 0)
-        dsift = compute_dsift(img, 10, 3)
+        dsift = compute_dsift(img, 3, 3)
         train_list.append(dsift)
 
     # Create testing feature list
     test_list = []
     for x in img_test_list:
         img = cv2.imread(x, 0)
-        dsift = compute_dsift(img, 10, 3)
+        dsift = compute_dsift(img, 3, 3)
         test_list.append(dsift)
 
     # Build Vocabulary
     vocabularies = build_visual_dictionary(train_list, 50)
+    # vocabularies = np.loadtxt("vocabulary.txt")
+
+    # Compute BoW list
+    train_bow_list = []
+    for x in train_list:
+        train_bow_list.append(compute_bow(x, vocabularies))
+
+    test_bow_list = []
+    for x in test_list:
+        test_bow_list.append(compute_bow(x, vocabularies))
     
+    # Train KNN
+    n_neighbor = 5
+    knn = NearestNeighbors(n_neighbors = n_neighbor, algorithm = 'ball_tree').fit(train_bow_list)
+    _, nbrs = knn.kneighbors(test_bow_list)
+
+    # create class counter
+    class_counter = {}
+    for x in label_train_list:
+        class_counter[x] = 0
+
+    # Count label number to predict
+    label_prediction_list = []
+    for i in range(nbrs.shape[0]):
+        for j in range(n_neighbor):
+            class_counter[label_train_list[nbrs[i][j]]] += 1
+        label_prediction_list.append(max(class_counter, key=lambda key: class_counter[key]))
+        for j in class_counter:
+            class_counter[j] = 0
+
+    # Counting number of data for each label
+    numbers_of_data = [0] * len(label_classes)
+    confusion = np.zeros((len(label_classes), len(label_classes)))
+    for i in range(len(label_test_list)):
+        index_correct_class = label_classes.index(label_test_list[i])
+        index_predict_class = label_classes.index(label_prediction_list[i])
+
+        numbers_of_data[index_correct_class] += 1
+        confusion[index_correct_class][index_predict_class] += 1
+
+    # Calculate Confusion Matrix and accuracy
+    accuracy = 0
+    for i in range(confusion.shape[0]):
+        for j in range(confusion.shape[1]):
+            confusion[i][j] /= numbers_of_data[i]
+            if (i == j):
+                accuracy += confusion[i][j]
+    accuracy /= len(label_classes)
+
     visualize_confusion_matrix(confusion, accuracy, label_classes)
     return confusion, accuracy
 
@@ -203,11 +251,11 @@ if __name__ == '__main__':
     # To do: replace with your dataset path
     label_classes, label_train_list, img_train_list, label_test_list, img_test_list = extract_dataset_info("./scene_classification_data")
 
-    img = cv2.imread("scene_classification_data/test/Bedroom/image_0003.jpg", 0)
-    dsift = compute_dsift(img, 10, 3)
-    voc = np.loadtxt("vocabulary.txt")
-    compute_bow(dsift, voc)
-    # classify_knn_tiny(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
+    # img = cv2.imread("scene_classification_data/test/Bedroom/image_0003.jpg", 0)
+    # dsift = compute_dsift(img, 10, 3)
+    # compute_bow(dsift, voc)
+    
+    classify_knn_tiny(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
 
     classify_knn_bow(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
     
