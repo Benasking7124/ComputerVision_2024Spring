@@ -7,7 +7,7 @@ from sklearn.cluster import KMeans
 from sklearn.svm import LinearSVC
 from scipy import stats
 from pathlib import Path, PureWindowsPath
-
+import ctypes
 
 def extract_dataset_info(data_path):
     # extract information from train.txt
@@ -122,16 +122,23 @@ def classify_knn_tiny(label_classes, label_train_list, img_train_list, label_tes
 def build_visual_dictionary(dense_feature_list, dict_size):
     # To do
     data_list = np.concatenate([np.split(array, array.shape[0]) for array in dense_feature_list])
+    
+    # Free the unused memory
+    del dense_feature_list
+    ctypes.CDLL("libc.so.6").malloc_trim(0)
+    
     data_list = data_list.reshape(data_list.shape[0], data_list.shape[2])
-    print("start")
-    import time
-    before = time.time()
-    print(before)
+    
+    # print("start")
+    # import time
+    # before = time.time()
+    # print(before)
     kmeans = KMeans(n_clusters = dict_size).fit(data_list)
-    duration = time.time() - before
-    print(duration)
     vocab = kmeans.cluster_centers_
-    np.savetxt("vocabulary.txt", vocab)
+    # duration = time.time() - before
+    # print(duration)
+    # np.savetxt("vocabulary.txt", vocab)
+    
     return vocab
 
 
@@ -178,25 +185,9 @@ def classify_knn_bow(label_classes, label_train_list, img_train_list, label_test
     for x in test_list:
         test_bow_list.append(compute_bow(x, vocabularies))
     
-    # Train KNN
-    n_neighbor = 10
-    knn = NearestNeighbors(n_neighbors = n_neighbor, algorithm = 'ball_tree').fit(train_bow_list)
-    _, nbrs = knn.kneighbors(test_bow_list)
-
-    # create class counter
-    class_counter = {}
-    for x in label_train_list:
-        class_counter[x] = 0
-
-    # Count label number to predict
-    label_prediction_list = []
-    for i in range(nbrs.shape[0]):
-        for j in range(n_neighbor):
-            class_counter[label_train_list[nbrs[i][j]]] += 1
-        label_prediction_list.append(max(class_counter, key=lambda key: class_counter[key]))
-        for j in class_counter:
-            class_counter[j] = 0
-
+    # Predict KNN
+    label_prediction_list = predict_knn(train_bow_list, label_train_list, test_bow_list, 10)
+    
     # Counting number of data for each label
     numbers_of_data = [0] * len(label_classes)
     confusion = np.zeros((len(label_classes), len(label_classes)))
@@ -220,13 +211,69 @@ def classify_knn_bow(label_classes, label_train_list, img_train_list, label_test
     return confusion, accuracy
 
 
-def predict_svm(feature_train, label_train, feature_test, n_classes):
+def predict_svm(feature_train, label_train, feature_test):
     # To do
+    svm = LinearSVC()
+    svm.fit(feature_train, label_train)
+    label_test_pred = svm.predict(feature_test)
     return label_test_pred
 
 
 def classify_svm_bow(label_classes, label_train_list, img_train_list, label_test_list, img_test_list):
     # To do
+    # Create training feature list
+    train_list = []
+    for x in img_train_list:
+        img = cv2.imread(x, 0)
+        dsift = compute_dsift(img, 5, 10)
+        train_list.append(dsift)
+
+    # Create testing feature list
+    test_list = []
+    for x in img_test_list:
+        img = cv2.imread(x, 0)
+        dsift = compute_dsift(img, 5, 10)
+        test_list.append(dsift)
+
+    # Build Vocabulary
+    vocabularies = build_visual_dictionary(train_list, 100)
+    # vocabularies = np.loadtxt("vocabulary.txt")
+
+    # Compute BoW list
+    train_bow_list = []
+    for x in train_list:
+        train_bow_list.append(compute_bow(x, vocabularies))
+
+    test_bow_list = []
+    for x in test_list:
+        test_bow_list.append(compute_bow(x, vocabularies))
+    
+    # Predict SVM
+    label_prediction_list = predict_svm(train_bow_list, label_train_list, test_bow_list)
+    
+    # Free the unused memory
+    del train_list, test_list, vocabularies, train_bow_list, test_bow_list
+    ctypes.CDLL("libc.so.6").malloc_trim(0)
+
+    # Counting number of data for each label
+    numbers_of_data = [0] * len(label_classes)
+    confusion = np.zeros((len(label_classes), len(label_classes)))
+    for i in range(len(label_test_list)):
+        index_correct_class = label_classes.index(label_test_list[i])
+        index_predict_class = label_classes.index(label_prediction_list[i])
+
+        numbers_of_data[index_correct_class] += 1
+        confusion[index_correct_class][index_predict_class] += 1
+
+    # Calculate Confusion Matrix and accuracy
+    accuracy = 0
+    for i in range(confusion.shape[0]):
+        for j in range(confusion.shape[1]):
+            confusion[i][j] /= numbers_of_data[i]
+            if (i == j):
+                accuracy += confusion[i][j]
+    accuracy /= len(label_classes)
+    
     visualize_confusion_matrix(confusion, accuracy, label_classes)
     return confusion, accuracy
 
@@ -251,16 +298,11 @@ if __name__ == '__main__':
     # To do: replace with your dataset path
     label_classes, label_train_list, img_train_list, label_test_list, img_test_list = extract_dataset_info("./scene_classification_data")
 
-    # img = cv2.imread("scene_classification_data/test/Bedroom/image_0003.jpg", 0)
-    # dsift = compute_dsift(img, 10, 3)
-    # compute_bow(dsift, voc)
-    
-    # classify_knn_tiny(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
+    classify_knn_tiny(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
 
     classify_knn_bow(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
+
+    # Free the unused memory, gc.collect() did not work
+    ctypes.CDLL("libc.so.6").malloc_trim(0)
     
     classify_svm_bow(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
-
-
-
-
