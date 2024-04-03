@@ -1,7 +1,7 @@
 import scipy.io as sio
 import matplotlib.pyplot as plt
 import numpy as np
-# from cnn import get_mini_batch, fc, relu, conv, pool2x2, flattening
+from cnn import get_mini_batch#, fc, relu, conv, pool2x2, flattening
 # from cnn import train_slp_linear, train_slp, train_mlp, train_cnn
 
 
@@ -141,6 +141,3 @@ def visualize_confusion_matrix(confusion, accuracy, label_classes, name):
     ax.set_yticks(np.arange(len(label_classes) + 1) - .5, minor=True)
     ax.tick_params(which="minor", bottom=False, left=False)
     plt.show()
-
-if __name__ == '__main__':
-    main_slp_linear()

@@ -10,6 +10,42 @@ import main_functions as main
 
 def get_mini_batch(im_train, label_train, batch_size):
     # TO DO
+    data_num = label_train.shape[1]
+    # Shuffle the order
+    order = np.random.choice(range(data_num), data_num, replace=False)
+    
+    index = 0
+    mini_batch_x = []
+    mini_batch_y = []
+    
+    while ((data_num - index) > batch_size):
+        batch_x = np.empty([196, 0])
+        batch_y = np.empty([10, 1])
+        for i in range(index, index + batch_size):
+            sample = im_train[:, order[i]].reshape(196, -1)
+            batch_x = np.append(batch_x, sample, axis = 1)
+            for j in range(10):
+                if j == label_train[0][order[i]]:
+                    batch_y[j] = 1
+                else:
+                    batch_y[j] = 0
+        index += batch_size
+        mini_batch_x.append(batch_x)
+        mini_batch_y.append(batch_y)
+
+    batch_x = np.empty([196, 0])
+    batch_y = np.empty([10, 1])
+    for i in range(index, data_num):
+            sample = im_train[:, order[i]].reshape(196, -1)
+            batch_x = np.append(batch_x, sample, axis = 1)
+            for j in range(10):
+                if j == label_train[0][order[i]]:
+                    batch_y[j] = 1
+                else:
+                    batch_y[j] = 0
+    mini_batch_x.append(batch_x)
+    mini_batch_y.append(batch_y)
+                    
     return mini_batch_x, mini_batch_y
 
 
