@@ -1,8 +1,8 @@
 import scipy.io as sio
 import matplotlib.pyplot as plt
 import numpy as np
-from cnn import get_mini_batch#, fc, relu, conv, pool2x2, flattening
-# from cnn import train_slp_linear, train_slp, train_mlp, train_cnn
+from cnn import get_mini_batch, fc, relu, conv, pool2x2, flattening
+from cnn import train_slp_linear, train_slp, train_mlp, train_cnn
 
 
 def main_slp_linear():
@@ -35,8 +35,8 @@ def main_slp_linear():
     visualize_confusion_matrix(confusion, accuracy, label_classes, 'Single-layer Linear Perceptron Confusion Matrix')
 
 def main_slp():
-    mnist_train = sio.loadmat('./mnist_train.mat')
-    mnist_test = sio.loadmat('./mnist_test.mat')
+    mnist_train = sio.loadmat('./ReducedMNIST/mnist_train.mat')
+    mnist_test = sio.loadmat('./ReducedMNIST/mnist_test.mat')
     im_train, label_train = mnist_train['im_train'], mnist_train['label_train']
     im_test, label_test = mnist_test['im_test'], mnist_test['label_test']
     batch_size = 32
@@ -64,8 +64,8 @@ def main_slp():
     visualize_confusion_matrix(confusion, accuracy, label_classes, 'Single-layer Perceptron Confusion Matrix')
 
 def main_mlp():
-    mnist_train = sio.loadmat('./mnist_train.mat')
-    mnist_test = sio.loadmat('./mnist_test.mat')
+    mnist_train = sio.loadmat('./ReducedMNIST/mnist_train.mat')
+    mnist_test = sio.loadmat('./ReducedMNIST/mnist_test.mat')
     im_train, label_train = mnist_train['im_train'], mnist_train['label_train']
     im_test, label_test = mnist_test['im_test'], mnist_test['label_test']
     batch_size = 32
