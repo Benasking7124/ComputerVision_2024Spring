@@ -96,8 +96,8 @@ def main_mlp():
 
 
 def main_cnn():
-    mnist_train = sio.loadmat('./mnist_train.mat')
-    mnist_test = sio.loadmat('./mnist_test.mat')
+    mnist_train = sio.loadmat('./ReducedMNIST/mnist_train.mat')
+    mnist_test = sio.loadmat('./ReducedMNIST/mnist_test.mat')
     im_train, label_train = mnist_train['im_train'], mnist_train['label_train']
     im_test, label_test = mnist_test['im_test'], mnist_test['label_test']
     batch_size = 32

@@ -96,31 +96,102 @@ def relu_backward(dl_dy, x, y):
     return dl_dx
 
 
+def im2col(x):
+    # Parameters
+    M,N = x.shape
+    col_extent = N - 3 + 1
+    row_extent = M - 3 + 1
+    
+    start_idx = np.arange(3)[:,None]*N + np.arange(3)
+    offset_idx = np.arange(row_extent)[:,None]*N + np.arange(col_extent)
+    return np.take (x,start_idx.ravel()[:,None] + offset_idx.ravel()[::1])
+
+
 def conv(x, w_conv, b_conv):
     # TO DO
+    num_out_ch = b_conv.shape[0]
+    num_in_ch = x.shape[2]
+    h_input = x.shape[0]
+    w_input = x.shape[1]
+    h_filter = w_conv.shape[0]
+    w_filter = w_conv.shape[1]
+    y = np.zeros([h_input, w_input, num_out_ch])
+
+    # Zero Padding
+    padding_h = int(h_filter / 2)
+    padding_w = int(w_filter / 2)
+    x_zp = np.empty([h_input + 2 * padding_h, w_input + 2 * padding_w, num_in_ch])
+    for i in range(num_in_ch):
+        x_zp[:, :, i] = np.pad(x[:, :, i], ((padding_h, padding_h), (padding_w, padding_w)), 'constant', constant_values=0)
+
+    # Convolution
+    # for n_out_ch in range(num_out_ch):
+    #     for i in range(h_input):
+    #         for j in range(w_input):
+    #             for k in range(h_filter):
+    #                 for l in range(w_filter):
+    #                     for n_in_ch in range(num_in_ch):
+    #                         y[i][j] += x_zp[i + k][j + l] * w_conv[h_filter - k - 1][w_filter - l -1][n_in_ch][n_out_ch]
+
+    for n_out_ch in range(num_out_ch):
+        for n_in_ch in range(num_in_ch):
+            row = np.flip(w_conv[:, :, n_in_ch, n_out_ch].flatten())
+            column = im2col(x_zp[:, :, n_in_ch])
+            y[:, :, n_out_ch] = (row @ column).reshape([h_input, w_input])
     return y
 
 
 def conv_backward(dl_dy, x, w_conv, b_conv, y):
     # TO DO
+    num_out_ch = b_conv.shape[0]
+    num_in_ch = x.shape[2]
+    h_input = x.shape[0]
+    w_input = x.shape[1]
+    h_filter = w_conv.shape[0]
+    w_filter = w_conv.shape[1]
+    
+    dl_dw = np.zeros([3, 3, 1, 3])
+    for n_out_ch in range(num_out_ch):
+        for hf in range(h_filter):
+            for wf in range(w_filter):
+                for n_in_ch in range(num_in_ch):
+                    for hi in range(h_input - h_filter):
+                        for wi in range(w_input - w_filter):
+                            dl_dw[hf][wf][n_in_ch][n_out_ch] += dl_dy[hi][wi][n_out_ch] * x[hi + hf][wi + wf][n_in_ch]
+    
+    dl_db = dl_dy[0][0][:]
+    dl_db = dl_db.reshape(dl_db.shape[0], -1)
     return dl_dw, dl_db
 
 def pool2x2(x):
     # TO DO
+    y = np.empty([int(x.shape[0] / 2), int(x.shape[1] / 2), x.shape[2]])
+    for i in range(x.shape[2]):
+        for j in range(0, x.shape[0], 2):
+            for k in range(0, x.shape[1], 2):
+                y[int(j / 2)][int(k / 2)][i] = np.max(x[j:j+2, k:k+2, i])
     return y
 
 def pool2x2_backward(dl_dy, x, y):
     # TO DO
+    dl_dx = np.zeros(x.shape)
+    for i in range(x.shape[2]):
+        for j in range(0, x.shape[0], 2):
+            for k in range(0, x.shape[1], 2):
+                dl_dx[j][k][i] = dl_dy[int(j / 2)][int(k / 2)][i]
     return dl_dx
 
 
 def flattening(x):
     # TO DO
+    y = x.flatten()
+    y = y.reshape(y.shape[0], -1)
     return y
 
 
 def flattening_backward(dl_dy, x, y):
     # TO DO
+    dl_dx = dl_dy.reshape(x.shape)
     return dl_dx
 
 
@@ -279,13 +350,99 @@ def train_mlp(mini_batch_x, mini_batch_y):
 
 def train_cnn(mini_batch_x, mini_batch_y):
     # TO DO
+    learning_rate = 0.1
+    decay_rate = 0.9
+    w_conv = np.random.normal(0, 0.1, size=(3, 3, 1, 3))
+    b_conv = np.random.normal(0, 0.1, size=(3, 1))
+    w_fc = np.random.normal(0, 0.1, size=(10, 147))
+    b_fc = np.random.normal(0, 0.1, size=(10, 1))
+    loss = []
+
+    k = 0
+    batch_size = 0
+    for i in range(5000):
+        print(i)
+        if ((i % 1000) == 0) and ((i / 1000) > 0):
+            learning_rate *= decay_rate
+        sum_dL_dw_conv = 0
+        sum_dL_db_conv = 0
+        sum_dL_dw_fc = 0
+        sum_dL_db_fc = 0
+        batch_size = mini_batch_x[k].shape[1]
+        sum_loss = 0
+
+        for j in range(batch_size):
+            x = mini_batch_x[k][:, j]
+            x = x.reshape(14, 14, 1)
+
+            # Convolutional Layer
+            ac = conv(x, w_conv, b_conv)
+
+            # Relu
+            f = relu(ac)
+
+            # Max Pooling
+            mp = pool2x2(f)
+
+            # Flatten
+            fln = flattening(mp)
+
+            # FC
+            afc = fc(fln, w_fc, b_fc)
+
+            # Soft Max and Loss Function
+            y_gt = mini_batch_y[k][:, j]
+            y_gt = y_gt.reshape(y_gt.shape[0], -1)
+            l, dl_dy = loss_cross_entropy_softmax(afc, y_gt)
+            sum_loss += l 
+
+            # FC Backward
+            dl_dx, dl_dw_fc, dl_db_fc = fc_backward(dl_dy, fln, w_fc, b_fc, afc)
+
+            # Flatten Backward
+            dl_dx = flattening_backward(dl_dx, mp, fln)
+
+            # Max Pooling Backward
+            dl_dx = pool2x2_backward(dl_dx, f, mp)
+
+            # Relu Backward
+            dl_dx = relu_backward(dl_dx, ac, f)
+
+            # Convolutional Layer Backward
+            dl_dw_conv, dl_db_conv = conv_backward(dl_dx, x, w_conv, b_conv, ac)
+
+            sum_dL_dw_conv += dl_dw_conv
+            sum_dL_db_conv += dl_db_conv
+            sum_dL_dw_fc += dl_dw_fc
+            sum_dL_db_fc += dl_db_fc
+
+        k = (k + 1) % len(mini_batch_x)
+        
+        w_conv -= (learning_rate / batch_size) * sum_dL_dw_conv
+        b_conv -= (learning_rate / batch_size) * sum_dL_db_conv
+        w_fc -= (learning_rate / batch_size) * sum_dL_dw_fc
+        b_fc -= (learning_rate / batch_size) * sum_dL_db_fc
+        
+        loss.append(sum_loss / batch_size)
+
+    # x = mini_batch_x[0][:, 0]
+    # x = x.reshape(14, 14, 1)
+    # conv(x, w_conv, b_conv)
+    # y = pool2x2(x[4:8, 4:8, :])
+    # dl = pool2x2_backward(y, x[4:8, 4:8, :], y)
+    # yf = flattening(y)
+    # yr = flattening_backward(yf, y, y)
+    
+    plt.plot(loss)
+    plt.show()
+
     return w_conv, b_conv, w_fc, b_fc
 
 
 if __name__ == '__main__':
     # main.main_slp_linear()
     # main.main_slp()
-    main.main_mlp()
+    # main.main_mlp()
     main.main_cnn()
 
 
