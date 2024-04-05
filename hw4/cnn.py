@@ -271,8 +271,8 @@ def train_mlp(mini_batch_x, mini_batch_y):
         
         loss.append(sum_loss / batch_size)
     
-    plt.plot(loss)
-    plt.show()
+    # plt.plot(loss)
+    # plt.show()
 
     return w1, b1, w2, b2
 
