@@ -96,71 +96,69 @@ def relu_backward(dl_dy, x, y):
     return dl_dx
 
 
-def im2col(x):
-    # Parameters
-    M,N = x.shape
-    col_extent = N - 3 + 1
-    row_extent = M - 3 + 1
+def im2col(img, block_size = (3, 3) ,step_size = 1):
+    row, column = img.shape
+    col_extent = column - block_size[1] + 1
+    row_extent = row - block_size[0] + 1
     
-    start_idx = np.arange(3)[:,None]*N + np.arange(3)
-    offset_idx = np.arange(row_extent)[:,None]*N + np.arange(col_extent)
-    return np.take (x,start_idx.ravel()[:,None] + offset_idx.ravel()[::1])
+    # Index of the first block
+    first_batch = np.arange(block_size[0])[:, None] * column + np.arange(block_size[1])
+    
+    # Offset from first block to the remaining blocks
+    offset_index = (np.arange(0, row_extent, step_size)[:, None] * column + np.arange(0, col_extent, step_size)).ravel()
+    
+    # Index of every element in the col matrix, number of row of index_matrix will be (block_size * block size)
+    index_matrix = first_batch.ravel()[:,None] + offset_index
+    
+    return np.take(img, index_matrix)
 
 
-def conv(x, w_conv, b_conv):
+def conv(x, w_conv, b_conv):   # The implemetation will actually be correlation
     # TO DO
     num_out_ch = b_conv.shape[0]
-    num_in_ch = x.shape[2]
-    h_input = x.shape[0]
-    w_input = x.shape[1]
-    h_filter = w_conv.shape[0]
-    w_filter = w_conv.shape[1]
-    y = np.zeros([h_input, w_input, num_out_ch])
+    h_input, w_input, num_in_ch = x.shape
+    h_filter, w_filter, _, _ = w_conv.shape
 
     # Zero Padding
     padding_h = int(h_filter / 2)
     padding_w = int(w_filter / 2)
-    x_zp = np.empty([h_input + 2 * padding_h, w_input + 2 * padding_w, num_in_ch])
-    for i in range(num_in_ch):
-        x_zp[:, :, i] = np.pad(x[:, :, i], ((padding_h, padding_h), (padding_w, padding_w)), 'constant', constant_values=0)
+    x_zp = np.pad(x, ((padding_h, padding_h), (padding_w, padding_w), (0, 0)), 'constant', constant_values=0)
 
-    # Convolution
-    # for n_out_ch in range(num_out_ch):
-    #     for i in range(h_input):
-    #         for j in range(w_input):
-    #             for k in range(h_filter):
-    #                 for l in range(w_filter):
-    #                     for n_in_ch in range(num_in_ch):
-    #                         y[i][j] += x_zp[i + k][j + l] * w_conv[h_filter - k - 1][w_filter - l -1][n_in_ch][n_out_ch]
+    # Bias Term
+    y = np.tile(b_conv.flatten(), (h_input, w_input, 1))
 
-    for n_out_ch in range(num_out_ch):
-        for n_in_ch in range(num_in_ch):
-            row = np.flip(w_conv[:, :, n_in_ch, n_out_ch].flatten())
-            column = im2col(x_zp[:, :, n_in_ch])
-            y[:, :, n_out_ch] = (row @ column).reshape([h_input, w_input])
+    # Correlation
+    for n_in_ch in range(num_in_ch):
+        img_column = im2col(x_zp[:, :, n_in_ch])
+        for n_out_ch in range(num_out_ch):
+            w_flatten = w_conv[:, :, n_in_ch, n_out_ch].flatten()
+            y[:, :, n_out_ch] += (w_flatten @ img_column).reshape([h_input, w_input])
+
     return y
 
 
 def conv_backward(dl_dy, x, w_conv, b_conv, y):
     # TO DO
     num_out_ch = b_conv.shape[0]
-    num_in_ch = x.shape[2]
-    h_input = x.shape[0]
-    w_input = x.shape[1]
-    h_filter = w_conv.shape[0]
-    w_filter = w_conv.shape[1]
+    h_input, w_input, num_in_ch = x.shape
+    h_filter, w_filter, _, _ = w_conv.shape
     
-    dl_dw = np.zeros([3, 3, 1, 3])
-    for n_out_ch in range(num_out_ch):
-        for hf in range(h_filter):
-            for wf in range(w_filter):
-                for n_in_ch in range(num_in_ch):
-                    for hi in range(h_input - h_filter):
-                        for wi in range(w_input - w_filter):
-                            dl_dw[hf][wf][n_in_ch][n_out_ch] += dl_dy[hi][wi][n_out_ch] * x[hi + hf][wi + wf][n_in_ch]
+    # Zero Padding
+    padding_h = int(h_filter / 2)
+    padding_w = int(w_filter / 2)
+    x_zp = np.pad(x, ((padding_h, padding_h), (padding_w, padding_w), (0, 0)), 'constant', constant_values=0)
+
+    # Correlation between x and dl_dy
+    dl_dw = np.empty([h_filter, w_filter, num_in_ch, num_out_ch])
+    for n_in_ch in range(num_in_ch):
+        img_column = im2col(x_zp[:, :, n_in_ch], (h_input, w_input))
+        for n_out_ch in range(num_out_ch):
+            dl_dy_flatten = dl_dy[:, :, n_out_ch].flatten()
+            dl_dw[:, :, n_in_ch, n_out_ch] = (dl_dy_flatten @ img_column).reshape(h_filter, w_filter)
+
+    # Bias Term
+    dl_db = np.sum(dl_dy, axis = (0, 1))[:, None]
     
-    dl_db = dl_dy[0][0][:]
-    dl_db = dl_db.reshape(dl_db.shape[0], -1)
     return dl_dw, dl_db
 
 def pool2x2(x):
@@ -351,7 +349,7 @@ def train_mlp(mini_batch_x, mini_batch_y):
 def train_cnn(mini_batch_x, mini_batch_y):
     # TO DO
     learning_rate = 0.1
-    decay_rate = 0.9
+    decay_rate = 0.01
     w_conv = np.random.normal(0, 0.1, size=(3, 3, 1, 3))
     b_conv = np.random.normal(0, 0.1, size=(3, 1))
     w_fc = np.random.normal(0, 0.1, size=(10, 147))
@@ -360,7 +358,7 @@ def train_cnn(mini_batch_x, mini_batch_y):
 
     k = 0
     batch_size = 0
-    for i in range(5000):
+    for i in range(8000):
         print(i)
         if ((i % 1000) == 0) and ((i / 1000) > 0):
             learning_rate *= decay_rate
@@ -373,6 +371,10 @@ def train_cnn(mini_batch_x, mini_batch_y):
 
         for j in range(batch_size):
             x = mini_batch_x[k][:, j]
+
+            # For multichanel input, if the format is img = img1.flatten() + img2.flatten(), the reshape could look like this:
+            # x = x.reshape(2, 3, 3).transpose(1, 2, 0)
+            
             x = x.reshape(14, 14, 1)
 
             # Convolutional Layer
@@ -424,14 +426,6 @@ def train_cnn(mini_batch_x, mini_batch_y):
         b_fc -= (learning_rate / batch_size) * sum_dL_db_fc
         
         loss.append(sum_loss / batch_size)
-
-    # x = mini_batch_x[0][:, 0]
-    # x = x.reshape(14, 14, 1)
-    # conv(x, w_conv, b_conv)
-    # y = pool2x2(x[4:8, 4:8, :])
-    # dl = pool2x2_backward(y, x[4:8, 4:8, :], y)
-    # yf = flattening(y)
-    # yr = flattening_backward(yf, y, y)
     
     plt.plot(loss)
     plt.show()
