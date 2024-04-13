@@ -176,7 +176,10 @@ def pool2x2_backward(dl_dy, x, y):
     for i in range(x.shape[2]):
         for j in range(0, x.shape[0], 2):
             for k in range(0, x.shape[1], 2):
-                dl_dx[j][k][i] = dl_dy[int(j / 2)][int(k / 2)][i]
+                index_flaten = np.argmax(x[j:j+2, k:k+2, i])
+                index_row = int(index_flaten / 2)
+                index_column = index_flaten % 2
+                dl_dx[j + index_row][k + index_column][i] = dl_dy[int(j / 2)][int(k / 2)][i]
     return dl_dx
 
 
@@ -229,14 +232,9 @@ def train_slp_linear(mini_batch_x, mini_batch_y):
         b -= (learning_rate / batch_size) * sum_dL_db
         loss.append(sum_loss / batch_size)
     
-    # x = np.array([1, 2, 3]).reshape(3, -1)
-    # w = np.array([[1, 2, 3], [4, 5, 6]])
-    # b = np.array([1, 2]).reshape(2, -1)
-    # y = fc(x, w, b)
-    # l, dl_dy = loss_euclidean(y.reshape(-1), [10, 30])
-    # _, dl_dw, dl_db = fc_backward(dl_dy, x, w, b, y)
     # plt.plot(loss)
     # plt.show()
+    
     return w, b
 
 def train_slp(mini_batch_x, mini_batch_y):
@@ -348,8 +346,8 @@ def train_mlp(mini_batch_x, mini_batch_y):
 
 def train_cnn(mini_batch_x, mini_batch_y):
     # TO DO
-    learning_rate = 0.1
-    decay_rate = 0.01
+    learning_rate = 0.05
+    decay_rate = 0.9
     w_conv = np.random.normal(0, 0.1, size=(3, 3, 1, 3))
     b_conv = np.random.normal(0, 0.1, size=(3, 1))
     w_fc = np.random.normal(0, 0.1, size=(10, 147))
@@ -373,9 +371,9 @@ def train_cnn(mini_batch_x, mini_batch_y):
             x = mini_batch_x[k][:, j]
 
             # For multichanel input, if the format is img = img1.flatten() + img2.flatten(), the reshape could look like this:
-            # x = x.reshape(2, 3, 3).transpose(1, 2, 0)
+            # x = x.reshape((2, 14, 14), order='F').transpose(1, 2, 0)
             
-            x = x.reshape(14, 14, 1)
+            x = x.reshape((14, 14, 1), order='F')
 
             # Convolutional Layer
             ac = conv(x, w_conv, b_conv)
@@ -427,16 +425,16 @@ def train_cnn(mini_batch_x, mini_batch_y):
         
         loss.append(sum_loss / batch_size)
     
-    plt.plot(loss)
-    plt.show()
+    # plt.plot(loss)
+    # plt.show()
 
     return w_conv, b_conv, w_fc, b_fc
 
 
 if __name__ == '__main__':
-    # main.main_slp_linear()
-    # main.main_slp()
-    # main.main_mlp()
+    main.main_slp_linear()
+    main.main_slp()
+    main.main_mlp()
     main.main_cnn()
 
 
