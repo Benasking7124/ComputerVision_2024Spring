@@ -35,6 +35,14 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}/hw4"
+        },
+        {
+            "name": "hw5",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/hw5"
         }
     ]
 }
