@@ -10,26 +10,135 @@ from mpl_toolkits.mplot3d import Axes3D
 
 def compute_F(pts1, pts2):
     # TO DO
+    F = np.empty([3, 3])
+    max_n_inlier = 0
+    max_inliers = []
+
+    for _ in range(100):
+        n_inlier = 0
+        inliers = []
+        n = np.random.choice(range(pts1.shape[0]), size = 8, replace=False)
+
+        # Construct A
+        A = np.empty([0, 9], dtype=np.float32)
+        for i in range(8):
+            x1, y1 = pts1[n[i]]
+            x2, y2 = pts2[n[i]]
+            # A = np.vstack([A, [x1 * x2, x1 * y2, x1, y1 * x2, y1 * y2, y1, x2, y2, 1]])
+            A = np.vstack([A, [x1 * x2, y1 * x2, x2, x1 * y2, y1 * y2, y2, x1, y1, 1]])
+        
+        # Compute SVD of A
+        _, _, vh = np.linalg.svd(A, full_matrices=False)
+        F_temp = vh[-1].reshape(3, 3)
+
+        # SVD Cleanup
+        u, s, vh = np.linalg.svd(F_temp, full_matrices=False)
+        s[-1] = 0
+        F_temp = u @ np.diag(s) @ vh
+
+        # Count inlier
+        for i in range(pts1.shape[0]):
+            p1 = np.hstack([pts1[i], 1])[:, None]
+            p2 = np.hstack([pts2[i], 1])[None, :]
+            if (p2 @ F_temp @ p1) < 1e-6:
+                inliers.append(i)
+                n_inlier +=1
+
+        if (n_inlier > max_n_inlier):
+            max_n_inlier = n_inlier
+            max_inliers = list(inliers)
+
+    # Recalculate F based on inliers
+    p1 = np.take(pts1, max_inliers, axis=0)
+    p2 = np.take(pts2, max_inliers, axis=0)
+    A = np.empty([0, 9], dtype=np.float32)
+    for i in range(p1.shape[0]):
+        x1, y1 = pts1[i]
+        x2, y2 = pts2[i]
+        A = np.vstack([A, [x1 * x2, y1 * x2, x2, x1 * y2, y1 * y2, y2, x1, y1, 1]])
+    _, _, vh = np.linalg.svd(A, full_matrices=False)
+    F = vh[-1].reshape(3, 3)
+    u, s, vh = np.linalg.svd(F, full_matrices=False)
+    s[-1] = 0
+    F = u @ np.diag(s) @ vh
+    
     return F
 
 
 def triangulation(P1, P2, pts1, pts2):
     # TO DO
+    pts3D = np.empty([0, 3])
+    
+    for i in range(pts1.shape[0]):
+        pts1_skew = np.array([[0, -1, pts1[i][1]],
+                              [1, 0, -pts1[i][0]],
+                              [-pts1[i][1], pts1[i][0], 0]])
+        A_up = pts1_skew @ P1
+        pts2_skew = np.array([[0, -1, pts2[i][1]],
+                              [1, 0, -pts2[i][0]],
+                              [-pts2[i][1], pts2[i][0], 0]])
+        A_down = pts2_skew @ P2
+
+        A = np.vstack([A_up, A_down])
+        _, _, vh = np.linalg.svd(A)
+        pt_3D = vh[-1][:3] / vh[-1][3]
+        pts3D = np.vstack([pts3D, pt_3D])
     return pts3D
 
 
 def disambiguate_pose(Rs, Cs, pts3Ds):
     # TO DO
+    n_valid = [0, 0, 0, 0]
+
+    for i in range(len(Rs)):
+        # Camera 1
+        T1 = np.hstack((np.eye(3), np.zeros((3, 1))))
+        T1 = np.vstack([T1, [0, 0, 0, 1]])
+
+        # Camera 2
+        T2 = np.hstack((Rs[i], -Rs[i] @ Cs[i]))
+        T2 = np.vstack([T2, [0, 0, 0, 1]])
+
+        # Check Z coordinate
+        for j in range(pts3Ds[i].shape[0]): 
+            p_c1 = T1 @ np.hstack([pts3Ds[i][j], 1])[:, None]
+            p_c2 = T2 @ np.hstack([pts3Ds[i][j], 1])[:, None]
+            if (p_c1[2] > 0) and (p_c2[2] > 0):
+                n_valid[i] += 1
+
+    max_valid = n_valid.index(max(n_valid))
+    R = Rs[max_valid]
+    C = Cs[max_valid]
+    pts3D = pts3Ds[max_valid]
     return R, C, pts3D
 
 
 def compute_rectification(K, R, C):
     # TO DO
+    r1 = (C / np.linalg.norm(C)).ravel()
+    r2 = (np.array([-C[1][0], C[0][0], 0]) / np.sqrt(C[0][0] ** 2 + C[1][0] ** 2))
+    r3 = np.cross(r1, r2)
+    R_rect = np.vstack([r1.T, r2.T, r3.T])
+
+    H1 = K @ R_rect @ np.linalg.inv(K)
+    H2 = K @ R_rect @ R.T @ np.linalg.inv(K)
     return H1, H2
 
 
 def dense_match(img1, img2, descriptors1, descriptors2):
     # TO DO
+    disparity = np.empty(img1.shape)
+
+    for i in range(img1.shape[0]):
+        print(i)
+        for j in range(img1.shape[1]):
+            d = descriptors1[i][j]
+            knn = NearestNeighbors(n_neighbors=1, algorithm='ball_tree').fit(descriptors2[i][j:img1.shape[1]])
+            _, n = knn.kneighbors(descriptors1[i][j][None, :])
+            disparity[i][j] = -n[0][0]
+            # for k in range(j, img1.shape[1]):
+            #     dk = descriptors2[i][k]
+            #     difference
     return disparity
 
 
@@ -233,7 +342,7 @@ if __name__ == '__main__':
     img_right_w = cv2.resize(img_right_w, (int(img_right_w.shape[1] / 2), int(img_right_w.shape[0] / 2)))
     img_left_w = cv2.cvtColor(img_left_w, cv2.COLOR_BGR2GRAY)  # convert to gray scale
     img_right_w = cv2.cvtColor(img_right_w, cv2.COLOR_BGR2GRAY)
-    data = np.load('./resource/hw5/dsift_descriptor.npz')
+    data = np.load('./dsift_descriptor.npz')
     desp1, desp2 = data['descriptors1'], data['descriptors2']
     disparity = dense_match(img_left_w, img_right_w, desp1, desp2)
     visualize_disparity_map(disparity)
