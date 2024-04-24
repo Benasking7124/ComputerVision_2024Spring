@@ -344,5 +344,5 @@ if __name__ == '__main__':
     img_right_w = cv2.cvtColor(img_right_w, cv2.COLOR_BGR2GRAY)
     data = np.load('./dsift_descriptor.npz')
     desp1, desp2 = data['descriptors1'], data['descriptors2']
-    disparity = dense_match(img_left_w, img_right_w, desp1, desp2)
+    disparity = dense_match(img_left_w, img_right_w, desp2, desp1)
     visualize_disparity_map(disparity)
